@@ -20,6 +20,7 @@ use crate::bypass::BypassRules;
 use crate::types::{LinuxProxyConfig, PlatformProxyConfig, ProxyKind};
 use std::collections::HashMap;
 use std::io::BufRead;
+use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 
@@ -128,19 +129,15 @@ pub(crate) struct Watcher {
 }
 
 pub(crate) fn spawn_watcher(on_change: Arc<dyn Fn() + Send + Sync>) -> Watcher {
-    let mut spawned = Command::new("dconf")
-        .args(["watch", "/system/proxy/"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn();
+    let mut dconf = Command::new("dconf");
+    dconf.args(["watch", "/system/proxy/"]);
+    configure_watcher_command(&mut dconf);
+    let mut spawned = dconf.spawn();
     if spawned.is_err() {
-        spawned = Command::new("gsettings")
-            .args(["monitor", "org.gnome.system.proxy"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn();
+        let mut gsettings = Command::new("gsettings");
+        gsettings.args(["monitor", "org.gnome.system.proxy"]);
+        configure_watcher_command(&mut gsettings);
+        spawned = gsettings.spawn();
     }
     let Ok(mut child) = spawned else {
         log::debug!(
@@ -171,6 +168,30 @@ pub(crate) fn spawn_watcher(on_change: Arc<dyn Fn() + Send + Sync>) -> Watcher {
             .expect("failed to spawn proxy watcher thread")
     });
     Watcher { child, thread }
+}
+
+/// Configure a proxy watcher to terminate if its owning process exits without dropping it.
+fn configure_watcher_command(command: &mut Command) {
+    let expected_parent = std::process::id() as libc::pid_t;
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+
+    // SAFETY: pre_exec runs after fork in the single-threaded child. prctl and
+    // getppid are async-signal-safe Linux system calls and do not access Rust state.
+    unsafe {
+        command.pre_exec(move || {
+            if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM) == -1 {
+                return Err(std::io::Error::last_os_error());
+            }
+            // The parent may have exited between fork and PR_SET_PDEATHSIG.
+            if libc::getppid() != expected_parent {
+                libc::raise(libc::SIGTERM);
+            }
+            Ok(())
+        });
+    }
 }
 
 impl Drop for Watcher {
