@@ -248,9 +248,11 @@ pub(crate) fn dns_search_domains() -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(target_arch = "x86_64")]
     use std::path::Path;
     use std::time::{Duration, Instant};
 
+    #[cfg(target_arch = "x86_64")]
     const WATCHER_SUBPROCESS_ENV: &str = "OS_PROXY_RESOLVER_WATCHER_SUBPROCESS";
 
     fn spawn_test_watcher() -> Watcher {
@@ -297,8 +299,10 @@ mod tests {
         true
     }
 
+    #[cfg(target_arch = "x86_64")]
     struct ProcessGuard(Option<u32>);
 
+    #[cfg(target_arch = "x86_64")]
     impl Drop for ProcessGuard {
         fn drop(&mut self) {
             let Some(pid) = self.0 else {
@@ -333,6 +337,10 @@ mod tests {
         );
     }
 
+    // `cross` runs foreign-architecture test binaries through QEMU but does not
+    // configure child processes to do so, so a test binary can only re-exec
+    // itself in the host-compatible x86_64 jobs.
+    #[cfg(target_arch = "x86_64")]
     #[test]
     fn watcher_exits_when_parent_process_exits_without_drop() {
         let pid_file = std::env::temp_dir().join(format!(
@@ -362,6 +370,7 @@ mod tests {
         assert!(exited, "watcher survived after its parent process exited");
     }
 
+    #[cfg(target_arch = "x86_64")]
     #[test]
     fn watcher_parent_death_subprocess_helper() {
         let Some(pid_file) = std::env::var_os(WATCHER_SUBPROCESS_ENV) else {
