@@ -2,12 +2,14 @@
 
 ## How to file issues and get help
 
-This project uses GitHub Issues to track bugs and feature requests. Please
-search the [existing issues](https://github.com/microsoft/os-proxy-resolver/issues)
-before filing new issues to avoid duplicates. For new issues, file your bug or
-feature request as a new Issue.
+This repository does not have GitHub Issues enabled. Please search the
+[existing Visual Studio Code issues](https://github.com/microsoft/vscode/issues)
+before filing bugs or feature requests to avoid duplicates. File new reports in
+the [microsoft/vscode repository](https://github.com/microsoft/vscode/issues/new/choose)
+and mention `os-proxy-resolver` in the report.
 
-For help and questions about using this project, please file a GitHub Issue.
+For help and questions about using this project, please file an issue in the
+`microsoft/vscode` repository.
 
 ## Microsoft Support Policy
 

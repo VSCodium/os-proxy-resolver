@@ -19,7 +19,7 @@ use crate::types::{PlatformProxyConfig, ProxyKind};
 #[cfg(target_os = "macos")]
 #[path = "macos.rs"]
 mod imp;
-#[cfg(all(unix, not(target_os = "macos")))]
+#[cfg(target_os = "linux")]
 #[path = "linux.rs"]
 mod imp;
 #[cfg(windows)]

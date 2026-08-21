@@ -22,7 +22,7 @@ use std::collections::HashMap;
 use std::io::BufRead;
 use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 
 pub(crate) fn read_config() -> OsProxyConfig {
     let output = Command::new("gsettings")
@@ -129,45 +129,77 @@ pub(crate) struct Watcher {
 }
 
 pub(crate) fn spawn_watcher(on_change: Arc<dyn Fn() + Send + Sync>) -> Watcher {
+    spawn_watcher_thread(spawn_system_watcher, on_change)
+}
+
+fn spawn_system_watcher() -> Option<Child> {
     let mut dconf = Command::new("dconf");
     dconf.args(["watch", "/system/proxy/"]);
     configure_watcher_command(&mut dconf);
-    let mut spawned = dconf.spawn();
-    if spawned.is_err() {
-        let mut gsettings = Command::new("gsettings");
-        gsettings.args(["monitor", "org.gnome.system.proxy"]);
-        configure_watcher_command(&mut gsettings);
-        spawned = gsettings.spawn();
-    }
-    let Ok(mut child) = spawned else {
-        log::debug!(
-            "proxy watcher: neither dconf nor gsettings available; changes will not be detected"
-        );
-        return Watcher {
-            child: Arc::new(Mutex::new(None)),
-            thread: None,
-        };
+    let dconf_error = match dconf.spawn() {
+        Ok(child) => return Some(child),
+        Err(error) => error,
     };
 
-    let stdout = child.stdout.take();
-    let child = Arc::new(Mutex::new(Some(child)));
-    let thread = stdout.map(|stdout| {
-        std::thread::Builder::new()
-            .name("os-proxy-watch".into())
-            .spawn(move || {
-                let reader = std::io::BufReader::new(stdout);
-                for line in reader.lines() {
-                    let Ok(line) = line else { break };
-                    // dconf watch prints the changed path on an unindented
-                    // line, then the value indented; only count the former.
-                    if !line.is_empty() && !line.starts_with(char::is_whitespace) {
-                        on_change();
-                    }
+    let mut gsettings = Command::new("gsettings");
+    gsettings.args(["monitor", "org.gnome.system.proxy"]);
+    configure_watcher_command(&mut gsettings);
+    match gsettings.spawn() {
+        Ok(child) => Some(child),
+        Err(gsettings_error) => {
+            log::debug!(
+                "proxy watcher: failed to spawn dconf ({dconf_error}) and gsettings \
+                 ({gsettings_error}); changes will not be detected"
+            );
+            None
+        }
+    }
+}
+
+fn spawn_watcher_thread(
+    spawn_child: impl FnOnce() -> Option<Child> + Send + 'static,
+    on_change: Arc<dyn Fn() + Send + Sync>,
+) -> Watcher {
+    let child = Arc::new(Mutex::new(None));
+    let thread_child = child.clone();
+    let (started_tx, started_rx) = mpsc::sync_channel(0);
+    let thread = std::thread::Builder::new()
+        .name("os-proxy-watch".into())
+        .spawn(move || {
+            let Some(mut spawned_child) = spawn_child() else {
+                let _ = started_tx.send(());
+                return;
+            };
+            let Some(stdout) = spawned_child.stdout.take() else {
+                let _ = spawned_child.kill();
+                let _ = spawned_child.wait();
+                log::debug!("proxy watcher: child stdout was not piped");
+                let _ = started_tx.send(());
+                return;
+            };
+            *thread_child
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(spawned_child);
+            let _ = started_tx.send(());
+
+            let reader = std::io::BufReader::new(stdout);
+            for line in reader.lines() {
+                let Ok(line) = line else { break };
+                // dconf watch prints the changed path on an unindented
+                // line, then the value indented; only count the former.
+                if !line.is_empty() && !line.starts_with(char::is_whitespace) {
+                    on_change();
                 }
-            })
-            .expect("failed to spawn proxy watcher thread")
-    });
-    Watcher { child, thread }
+            }
+        })
+        .expect("failed to spawn proxy watcher thread");
+    started_rx
+        .recv()
+        .expect("proxy watcher thread stopped during startup");
+    Watcher {
+        child,
+        thread: Some(thread),
+    }
 }
 
 /// Configure a proxy watcher to terminate if its owning process exits without dropping it.
@@ -178,16 +210,16 @@ fn configure_watcher_command(command: &mut Command) {
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
 
-    // SAFETY: pre_exec runs after fork in the single-threaded child. prctl and
-    // getppid are async-signal-safe Linux system calls and do not access Rust state.
+    // SAFETY: pre_exec runs after fork in the single-threaded child. These
+    // operations only invoke async-signal-safe Linux system calls.
     unsafe {
         command.pre_exec(move || {
-            if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM) == -1 {
+            if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL) == -1 {
                 return Err(std::io::Error::last_os_error());
             }
             // The parent may have exited between fork and PR_SET_PDEATHSIG.
             if libc::getppid() != expected_parent {
-                libc::raise(libc::SIGTERM);
+                libc::_exit(1);
             }
             Ok(())
         });
@@ -216,6 +248,133 @@ pub(crate) fn dns_search_domains() -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
+    use std::time::{Duration, Instant};
+
+    const WATCHER_SUBPROCESS_ENV: &str = "OS_PROXY_RESOLVER_WATCHER_SUBPROCESS";
+
+    fn spawn_test_watcher() -> Watcher {
+        spawn_watcher_thread(
+            || {
+                let mut command = Command::new("sleep");
+                command.arg("60");
+                configure_watcher_command(&mut command);
+                Some(command.spawn().expect("failed to spawn test watcher"))
+            },
+            Arc::new(|| {}),
+        )
+    }
+
+    fn watcher_child_pid(watcher: &Watcher) -> u32 {
+        watcher
+            .child
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .as_ref()
+            .expect("test watcher child was not started")
+            .id()
+    }
+
+    fn process_is_running(pid: u32) -> bool {
+        let stat = match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
+            Ok(stat) => stat,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return false,
+            Err(error) => panic!("failed to read status for process {pid}: {error}"),
+        };
+        stat.rsplit_once(") ")
+            .and_then(|(_, fields)| fields.chars().next())
+            .is_some_and(|state| state != 'Z')
+    }
+
+    fn wait_for_process_exit(pid: u32) -> bool {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while process_is_running(pid) {
+            if Instant::now() >= deadline {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        true
+    }
+
+    struct ProcessGuard(Option<u32>);
+
+    impl Drop for ProcessGuard {
+        fn drop(&mut self) {
+            let Some(pid) = self.0 else {
+                return;
+            };
+            // SAFETY: kill with a positive PID and SIGKILL has no memory-safety
+            // requirements. It is only a fallback for a failed test.
+            unsafe {
+                libc::kill(pid as libc::pid_t, libc::SIGKILL);
+            }
+        }
+    }
+
+    #[test]
+    fn watcher_outlives_the_thread_that_created_it() {
+        let (watcher, pid) = std::thread::spawn(|| {
+            let watcher = spawn_test_watcher();
+            let pid = watcher_child_pid(&watcher);
+            (watcher, pid)
+        })
+        .join()
+        .expect("watcher creator thread panicked");
+
+        assert!(
+            process_is_running(pid),
+            "watcher exited with its short-lived caller thread"
+        );
+        drop(watcher);
+        assert!(
+            wait_for_process_exit(pid),
+            "watcher did not exit when dropped"
+        );
+    }
+
+    #[test]
+    fn watcher_exits_when_parent_process_exits_without_drop() {
+        let pid_file = std::env::temp_dir().join(format!(
+            "os-proxy-resolver-watcher-{}.pid",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&pid_file);
+        let status = Command::new(std::env::current_exe().expect("test executable unavailable"))
+            .arg("watcher_parent_death_subprocess_helper")
+            .arg("--nocapture")
+            .env(WATCHER_SUBPROCESS_ENV, &pid_file)
+            .status()
+            .expect("failed to run watcher parent subprocess");
+        let pid_result = std::fs::read_to_string(&pid_file);
+        let _ = std::fs::remove_file(&pid_file);
+
+        assert!(status.success(), "watcher parent subprocess failed");
+        let pid = pid_result
+            .expect("watcher parent subprocess did not report its child PID")
+            .parse()
+            .expect("watcher parent subprocess reported an invalid child PID");
+        let mut guard = ProcessGuard(Some(pid));
+        let exited = wait_for_process_exit(pid);
+        if exited {
+            guard.0 = None;
+        }
+        assert!(exited, "watcher survived after its parent process exited");
+    }
+
+    #[test]
+    fn watcher_parent_death_subprocess_helper() {
+        let Some(pid_file) = std::env::var_os(WATCHER_SUBPROCESS_ENV) else {
+            return;
+        };
+        let watcher = spawn_test_watcher();
+        std::fs::write(
+            Path::new(&pid_file),
+            watcher_child_pid(&watcher).to_string(),
+        )
+        .expect("failed to report watcher PID");
+        std::process::exit(0);
+    }
 
     #[test]
     fn parses_manual_mode() {
