@@ -19,7 +19,7 @@ use super::{OsProxyConfig, StaticRules};
 use crate::bypass::BypassRules;
 use crate::types::{LinuxProxyConfig, PlatformProxyConfig, ProxyKind};
 use std::collections::HashMap;
-use std::io::BufRead;
+use std::io::{self, BufRead};
 use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 use std::sync::{mpsc, Arc, Mutex};
@@ -202,9 +202,11 @@ fn spawn_watcher_thread(
     }
 }
 
-/// Configure a proxy watcher to terminate if its owning process exits without dropping it.
+/// Configure a proxy watcher to terminate with its owner and inherit only standard I/O.
 fn configure_watcher_command(command: &mut Command) {
     let expected_parent = std::process::id() as libc::pid_t;
+    let file_descriptor_limit =
+        file_descriptor_limit().map_err(|error| error.raw_os_error().unwrap_or(libc::EIO));
     command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -221,9 +223,82 @@ fn configure_watcher_command(command: &mut Command) {
             if libc::getppid() != expected_parent {
                 libc::_exit(1);
             }
+            mark_file_descriptors_close_on_exec(file_descriptor_limit)?;
             Ok(())
         });
     }
+}
+
+fn file_descriptor_limit() -> io::Result<libc::c_int> {
+    let mut limit = std::mem::MaybeUninit::<libc::rlimit>::uninit();
+    // SAFETY: getrlimit initializes the supplied rlimit on success.
+    if unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, limit.as_mut_ptr()) } == -1 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: the successful getrlimit call initialized limit.
+    let limit = unsafe { limit.assume_init() }.rlim_cur;
+    Ok(limit.min(libc::c_int::MAX as libc::rlim_t) as libc::c_int)
+}
+
+fn mark_file_descriptors_close_on_exec(
+    file_descriptor_limit: Result<libc::c_int, libc::c_int>,
+) -> io::Result<()> {
+    // CLOSE_RANGE_CLOEXEC preserves Rust's internal exec-error pipe until exec
+    // succeeds while preventing every non-stdio descriptor from reaching the
+    // watcher program.
+    // SAFETY: close_range operates on the calling process's descriptor table.
+    loop {
+        let result = unsafe {
+            libc::syscall(
+                libc::SYS_close_range,
+                3 as libc::c_uint,
+                libc::c_uint::MAX,
+                libc::CLOSE_RANGE_CLOEXEC,
+            )
+        };
+        if result == 0 {
+            return Ok(());
+        }
+        if io::Error::last_os_error().raw_os_error() != Some(libc::EINTR) {
+            break;
+        }
+    }
+
+    // Older kernels and restricted seccomp profiles may not support
+    // close_range. fcntl is slower but provides equivalent behavior.
+    let file_descriptor_limit = file_descriptor_limit.map_err(io::Error::from_raw_os_error)?;
+    for fd in 3..file_descriptor_limit {
+        let flags = loop {
+            // SAFETY: fcntl accepts any integer descriptor and reports EBADF
+            // for descriptors that are not open.
+            let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+            if flags != -1 {
+                break flags;
+            }
+            let error = io::Error::last_os_error();
+            match error.raw_os_error() {
+                Some(libc::EBADF) => break -1,
+                Some(libc::EINTR) => continue,
+                _ => return Err(error),
+            }
+        };
+        if flags == -1 {
+            continue;
+        }
+        if flags & libc::FD_CLOEXEC == 0 {
+            loop {
+                // SAFETY: flags came from F_GETFD for this descriptor.
+                if unsafe { libc::fcntl(fd, libc::F_SETFD, flags | libc::FD_CLOEXEC) } != -1 {
+                    break;
+                }
+                let error = io::Error::last_os_error();
+                if error.raw_os_error() != Some(libc::EINTR) {
+                    return Err(error);
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 impl Drop for Watcher {
@@ -248,6 +323,7 @@ pub(crate) fn dns_search_domains() -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::fd::AsRawFd;
     #[cfg(target_arch = "x86_64")]
     use std::path::Path;
     use std::time::{Duration, Instant};
@@ -334,6 +410,35 @@ mod tests {
         assert!(
             wait_for_process_exit(pid),
             "watcher did not exit when dropped"
+        );
+    }
+
+    #[test]
+    fn watcher_does_not_inherit_unrelated_file_descriptors() {
+        let file = std::fs::File::open("/dev/null").expect("failed to open test descriptor");
+        let fd = file.as_raw_fd();
+        // SAFETY: fd belongs to file and remains open for the duration of the test.
+        let original_flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+        assert_ne!(original_flags, -1, "failed to read descriptor flags");
+        // SAFETY: fd belongs to file and original_flags came from F_GETFD.
+        assert_ne!(
+            unsafe { libc::fcntl(fd, libc::F_SETFD, original_flags & !libc::FD_CLOEXEC) },
+            -1,
+            "failed to make test descriptor inheritable"
+        );
+
+        let watcher = spawn_test_watcher();
+        // Restore the parent's flags immediately; the child has its own descriptor table.
+        // SAFETY: fd still belongs to file and original_flags came from F_GETFD.
+        assert_ne!(
+            unsafe { libc::fcntl(fd, libc::F_SETFD, original_flags) },
+            -1,
+            "failed to restore test descriptor flags"
+        );
+        let pid = watcher_child_pid(&watcher);
+        assert!(
+            !std::path::Path::new(&format!("/proc/{pid}/fd/{fd}")).exists(),
+            "watcher inherited unrelated descriptor {fd}"
         );
     }
 
