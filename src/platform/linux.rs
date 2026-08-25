@@ -19,9 +19,10 @@ use super::{OsProxyConfig, StaticRules};
 use crate::bypass::BypassRules;
 use crate::types::{LinuxProxyConfig, PlatformProxyConfig, ProxyKind};
 use std::collections::HashMap;
-use std::io::BufRead;
+use std::io::{self, BufRead};
+use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 
 pub(crate) fn read_config() -> OsProxyConfig {
     let output = Command::new("gsettings")
@@ -128,49 +129,176 @@ pub(crate) struct Watcher {
 }
 
 pub(crate) fn spawn_watcher(on_change: Arc<dyn Fn() + Send + Sync>) -> Watcher {
-    let mut spawned = Command::new("dconf")
-        .args(["watch", "/system/proxy/"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn();
-    if spawned.is_err() {
-        spawned = Command::new("gsettings")
-            .args(["monitor", "org.gnome.system.proxy"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn();
-    }
-    let Ok(mut child) = spawned else {
-        log::debug!(
-            "proxy watcher: neither dconf nor gsettings available; changes will not be detected"
-        );
-        return Watcher {
-            child: Arc::new(Mutex::new(None)),
-            thread: None,
-        };
+    spawn_watcher_thread(spawn_system_watcher, on_change)
+}
+
+fn spawn_system_watcher() -> Option<Child> {
+    let mut dconf = Command::new("dconf");
+    dconf.args(["watch", "/system/proxy/"]);
+    configure_watcher_command(&mut dconf);
+    let dconf_error = match dconf.spawn() {
+        Ok(child) => return Some(child),
+        Err(error) => error,
     };
 
-    let stdout = child.stdout.take();
-    let child = Arc::new(Mutex::new(Some(child)));
-    let thread = stdout.map(|stdout| {
-        std::thread::Builder::new()
-            .name("os-proxy-watch".into())
-            .spawn(move || {
-                let reader = std::io::BufReader::new(stdout);
-                for line in reader.lines() {
-                    let Ok(line) = line else { break };
-                    // dconf watch prints the changed path on an unindented
-                    // line, then the value indented; only count the former.
-                    if !line.is_empty() && !line.starts_with(char::is_whitespace) {
-                        on_change();
-                    }
+    let mut gsettings = Command::new("gsettings");
+    gsettings.args(["monitor", "org.gnome.system.proxy"]);
+    configure_watcher_command(&mut gsettings);
+    match gsettings.spawn() {
+        Ok(child) => Some(child),
+        Err(gsettings_error) => {
+            log::debug!(
+                "proxy watcher: failed to spawn dconf ({dconf_error}) and gsettings \
+                 ({gsettings_error}); changes will not be detected"
+            );
+            None
+        }
+    }
+}
+
+fn spawn_watcher_thread(
+    spawn_child: impl FnOnce() -> Option<Child> + Send + 'static,
+    on_change: Arc<dyn Fn() + Send + Sync>,
+) -> Watcher {
+    let child = Arc::new(Mutex::new(None));
+    let thread_child = child.clone();
+    let (started_tx, started_rx) = mpsc::sync_channel(0);
+    let thread = std::thread::Builder::new()
+        .name("os-proxy-watch".into())
+        .spawn(move || {
+            let Some(mut spawned_child) = spawn_child() else {
+                let _ = started_tx.send(());
+                return;
+            };
+            let Some(stdout) = spawned_child.stdout.take() else {
+                let _ = spawned_child.kill();
+                let _ = spawned_child.wait();
+                log::debug!("proxy watcher: child stdout was not piped");
+                let _ = started_tx.send(());
+                return;
+            };
+            *thread_child
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(spawned_child);
+            let _ = started_tx.send(());
+
+            let reader = std::io::BufReader::new(stdout);
+            for line in reader.lines() {
+                let Ok(line) = line else { break };
+                // dconf watch prints the changed path on an unindented
+                // line, then the value indented; only count the former.
+                if !line.is_empty() && !line.starts_with(char::is_whitespace) {
+                    on_change();
                 }
-            })
-            .expect("failed to spawn proxy watcher thread")
-    });
-    Watcher { child, thread }
+            }
+        })
+        .expect("failed to spawn proxy watcher thread");
+    started_rx
+        .recv()
+        .expect("proxy watcher thread stopped during startup");
+    Watcher {
+        child,
+        thread: Some(thread),
+    }
+}
+
+/// Configure a proxy watcher to terminate with its owner and inherit only standard I/O.
+fn configure_watcher_command(command: &mut Command) {
+    let expected_parent = std::process::id() as libc::pid_t;
+    let file_descriptor_limit =
+        file_descriptor_limit().map_err(|error| error.raw_os_error().unwrap_or(libc::EIO));
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+
+    // SAFETY: pre_exec runs after fork in the single-threaded child. These
+    // operations only invoke async-signal-safe Linux system calls.
+    unsafe {
+        command.pre_exec(move || {
+            if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL) == -1 {
+                return Err(std::io::Error::last_os_error());
+            }
+            // The parent may have exited between fork and PR_SET_PDEATHSIG.
+            if libc::getppid() != expected_parent {
+                libc::_exit(1);
+            }
+            mark_file_descriptors_close_on_exec(file_descriptor_limit)?;
+            Ok(())
+        });
+    }
+}
+
+fn file_descriptor_limit() -> io::Result<libc::c_int> {
+    let mut limit = std::mem::MaybeUninit::<libc::rlimit>::uninit();
+    // SAFETY: getrlimit initializes the supplied rlimit on success.
+    if unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, limit.as_mut_ptr()) } == -1 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: the successful getrlimit call initialized limit.
+    let limit = unsafe { limit.assume_init() }.rlim_cur;
+    Ok(limit.min(libc::c_int::MAX as libc::rlim_t) as libc::c_int)
+}
+
+fn mark_file_descriptors_close_on_exec(
+    file_descriptor_limit: Result<libc::c_int, libc::c_int>,
+) -> io::Result<()> {
+    // CLOSE_RANGE_CLOEXEC preserves Rust's internal exec-error pipe until exec
+    // succeeds while preventing every non-stdio descriptor from reaching the
+    // watcher program.
+    // SAFETY: close_range operates on the calling process's descriptor table.
+    loop {
+        let result = unsafe {
+            libc::syscall(
+                libc::SYS_close_range,
+                3 as libc::c_uint,
+                libc::c_uint::MAX,
+                libc::CLOSE_RANGE_CLOEXEC,
+            )
+        };
+        if result == 0 {
+            return Ok(());
+        }
+        if io::Error::last_os_error().raw_os_error() != Some(libc::EINTR) {
+            break;
+        }
+    }
+
+    // Older kernels and restricted seccomp profiles may not support
+    // close_range. fcntl is slower but provides equivalent behavior.
+    let file_descriptor_limit = file_descriptor_limit.map_err(io::Error::from_raw_os_error)?;
+    for fd in 3..file_descriptor_limit {
+        let flags = loop {
+            // SAFETY: fcntl accepts any integer descriptor and reports EBADF
+            // for descriptors that are not open.
+            let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+            if flags != -1 {
+                break flags;
+            }
+            let error = io::Error::last_os_error();
+            match error.raw_os_error() {
+                Some(libc::EBADF) => break -1,
+                Some(libc::EINTR) => continue,
+                _ => return Err(error),
+            }
+        };
+        if flags == -1 {
+            continue;
+        }
+        if flags & libc::FD_CLOEXEC == 0 {
+            loop {
+                // SAFETY: flags came from F_GETFD for this descriptor.
+                if unsafe { libc::fcntl(fd, libc::F_SETFD, flags | libc::FD_CLOEXEC) } != -1 {
+                    break;
+                }
+                let error = io::Error::last_os_error();
+                if error.raw_os_error() != Some(libc::EINTR) {
+                    return Err(error);
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 impl Drop for Watcher {
@@ -195,6 +323,172 @@ pub(crate) fn dns_search_domains() -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::fd::AsRawFd;
+    #[cfg(target_arch = "x86_64")]
+    use std::path::Path;
+    use std::time::{Duration, Instant};
+
+    #[cfg(target_arch = "x86_64")]
+    const WATCHER_SUBPROCESS_ENV: &str = "OS_PROXY_RESOLVER_WATCHER_SUBPROCESS";
+
+    fn spawn_test_watcher() -> Watcher {
+        spawn_watcher_thread(
+            || {
+                let mut command = Command::new("sleep");
+                command.arg("60");
+                configure_watcher_command(&mut command);
+                Some(command.spawn().expect("failed to spawn test watcher"))
+            },
+            Arc::new(|| {}),
+        )
+    }
+
+    fn watcher_child_pid(watcher: &Watcher) -> u32 {
+        watcher
+            .child
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .as_ref()
+            .expect("test watcher child was not started")
+            .id()
+    }
+
+    fn process_is_running(pid: u32) -> bool {
+        let stat = match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
+            Ok(stat) => stat,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return false,
+            Err(error) => panic!("failed to read status for process {pid}: {error}"),
+        };
+        stat.rsplit_once(") ")
+            .and_then(|(_, fields)| fields.chars().next())
+            .is_some_and(|state| state != 'Z')
+    }
+
+    fn wait_for_process_exit(pid: u32) -> bool {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while process_is_running(pid) {
+            if Instant::now() >= deadline {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        true
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    struct ProcessGuard(Option<u32>);
+
+    #[cfg(target_arch = "x86_64")]
+    impl Drop for ProcessGuard {
+        fn drop(&mut self) {
+            let Some(pid) = self.0 else {
+                return;
+            };
+            // SAFETY: kill with a positive PID and SIGKILL has no memory-safety
+            // requirements. It is only a fallback for a failed test.
+            unsafe {
+                libc::kill(pid as libc::pid_t, libc::SIGKILL);
+            }
+        }
+    }
+
+    #[test]
+    fn watcher_outlives_the_thread_that_created_it() {
+        let (watcher, pid) = std::thread::spawn(|| {
+            let watcher = spawn_test_watcher();
+            let pid = watcher_child_pid(&watcher);
+            (watcher, pid)
+        })
+        .join()
+        .expect("watcher creator thread panicked");
+
+        assert!(
+            process_is_running(pid),
+            "watcher exited with its short-lived caller thread"
+        );
+        drop(watcher);
+        assert!(
+            wait_for_process_exit(pid),
+            "watcher did not exit when dropped"
+        );
+    }
+
+    #[test]
+    fn watcher_does_not_inherit_unrelated_file_descriptors() {
+        let file = std::fs::File::open("/dev/null").expect("failed to open test descriptor");
+        let fd = file.as_raw_fd();
+        // SAFETY: fd belongs to file and remains open for the duration of the test.
+        let original_flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+        assert_ne!(original_flags, -1, "failed to read descriptor flags");
+        // SAFETY: fd belongs to file and original_flags came from F_GETFD.
+        assert_ne!(
+            unsafe { libc::fcntl(fd, libc::F_SETFD, original_flags & !libc::FD_CLOEXEC) },
+            -1,
+            "failed to make test descriptor inheritable"
+        );
+
+        let watcher = spawn_test_watcher();
+        // Restore the parent's flags immediately; the child has its own descriptor table.
+        // SAFETY: fd still belongs to file and original_flags came from F_GETFD.
+        assert_ne!(
+            unsafe { libc::fcntl(fd, libc::F_SETFD, original_flags) },
+            -1,
+            "failed to restore test descriptor flags"
+        );
+        let pid = watcher_child_pid(&watcher);
+        assert!(
+            !std::path::Path::new(&format!("/proc/{pid}/fd/{fd}")).exists(),
+            "watcher inherited unrelated descriptor {fd}"
+        );
+    }
+
+    // `cross` runs foreign-architecture test binaries through QEMU but does not
+    // configure child processes to do so, so a test binary can only re-exec
+    // itself in the host-compatible x86_64 jobs.
+    #[cfg(target_arch = "x86_64")]
+    #[test]
+    fn watcher_exits_when_parent_process_exits_without_drop() {
+        let pid_file = std::env::temp_dir().join(format!(
+            "os-proxy-resolver-watcher-{}.pid",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&pid_file);
+        let status = Command::new(std::env::current_exe().expect("test executable unavailable"))
+            .arg("watcher_parent_death_subprocess_helper")
+            .arg("--nocapture")
+            .env(WATCHER_SUBPROCESS_ENV, &pid_file)
+            .status()
+            .expect("failed to run watcher parent subprocess");
+        let pid_result = std::fs::read_to_string(&pid_file);
+        let _ = std::fs::remove_file(&pid_file);
+
+        assert!(status.success(), "watcher parent subprocess failed");
+        let pid = pid_result
+            .expect("watcher parent subprocess did not report its child PID")
+            .parse()
+            .expect("watcher parent subprocess reported an invalid child PID");
+        let mut guard = ProcessGuard(Some(pid));
+        let exited = wait_for_process_exit(pid);
+        if exited {
+            guard.0 = None;
+        }
+        assert!(exited, "watcher survived after its parent process exited");
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    #[test]
+    fn watcher_parent_death_subprocess_helper() {
+        let Some(pid_file) = std::env::var_os(WATCHER_SUBPROCESS_ENV) else {
+            return;
+        };
+        let watcher = spawn_test_watcher();
+        std::fs::write(
+            Path::new(&pid_file),
+            watcher_child_pid(&watcher).to_string(),
+        )
+        .expect("failed to report watcher PID");
+        std::process::exit(0);
+    }
 
     #[test]
     fn parses_manual_mode() {
