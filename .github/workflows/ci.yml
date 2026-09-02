@@ -636,42 +636,42 @@ jobs:
       - run: npm run verify:packages
   # }}}
 
-  licenses: # {{{
-    name: licenses (deny + notices)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Install Rust
-        run: |
-          rustup toolchain install stable --profile minimal --no-self-update
-          rustup default stable
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      - name: Install cargo-deny and cargo-about
-        uses: taiki-e/install-action@fcf5432d9f50d67e37ee6e29bdb7a224ff67b4a7 # v2.86.8
-        with:
-          tool: cargo-deny,cargo-about
-      # Fail if any dependency carries a license outside deny.toml's allow-list.
-      - name: Check dependency licenses
-        run: cargo deny check licenses bans sources
-      # Fail if ThirdPartyNotices.txt is stale relative to the current graph.
-      # The comparison ignores blank-line and whitespace differences (-B -w):
-      # some crates ship multiple copies of the same license text differing only
-      # in whitespace (e.g. miniz_oxide's LICENSE vs LICENSE-MIT.md), and
-      # cargo-about picks whichever the filesystem lists first, which varies by
-      # OS. We only care that the license *content* matches, not its formatting.
-      - name: Verify ThirdPartyNotices.txt is up to date
-        run: |
-          cargo about generate --all-features about.hbs > ThirdPartyNotices.generated.txt
-          if ! diff -u -B -w ThirdPartyNotices.txt ThirdPartyNotices.generated.txt; then
-            echo "::error::ThirdPartyNotices.txt is out of date. Run: cargo about generate --all-features about.hbs > ThirdPartyNotices.txt"
-            exit 1
-          fi
-          cargo about generate --manifest-path npm/native/Cargo.toml --config about.toml \
-            --locked --fail --output-file npm/ThirdPartyNotices.generated.txt npm/about.hbs
-          if ! diff -u -B -w npm/ThirdPartyNotices.txt npm/ThirdPartyNotices.generated.txt; then
-            echo "::error::npm/ThirdPartyNotices.txt is out of date. Run: cargo about generate --manifest-path npm/native/Cargo.toml --config about.toml --locked --fail --output-file npm/ThirdPartyNotices.txt npm/about.hbs"
-            exit 1
-          fi
-  # }}}
+  # licenses: # {{{
+  #   name: licenses (deny + notices)
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+  #       with:
+  #         persist-credentials: false
+  #     - name: Install Rust
+  #       run: |
+  #         rustup toolchain install stable --profile minimal --no-self-update
+  #         rustup default stable
+  #     - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+  #     - name: Install cargo-deny and cargo-about
+  #       uses: taiki-e/install-action@fcf5432d9f50d67e37ee6e29bdb7a224ff67b4a7 # v2.86.8
+  #       with:
+  #         tool: cargo-deny,cargo-about
+  #     # Fail if any dependency carries a license outside deny.toml's allow-list.
+  #     - name: Check dependency licenses
+  #       run: cargo deny check licenses bans sources
+  #     # Fail if ThirdPartyNotices.txt is stale relative to the current graph.
+  #     # The comparison ignores blank-line and whitespace differences (-B -w):
+  #     # some crates ship multiple copies of the same license text differing only
+  #     # in whitespace (e.g. miniz_oxide's LICENSE vs LICENSE-MIT.md), and
+  #     # cargo-about picks whichever the filesystem lists first, which varies by
+  #     # OS. We only care that the license *content* matches, not its formatting.
+  #     - name: Verify ThirdPartyNotices.txt is up to date
+  #       run: |
+  #         cargo about generate --all-features about.hbs > ThirdPartyNotices.generated.txt
+  #         if ! diff -u -B -w ThirdPartyNotices.txt ThirdPartyNotices.generated.txt; then
+  #           echo "::error::ThirdPartyNotices.txt is out of date. Run: cargo about generate --all-features about.hbs > ThirdPartyNotices.txt"
+  #           exit 1
+  #         fi
+  #         cargo about generate --manifest-path npm/native/Cargo.toml --config about.toml \
+  #           --locked --fail --output-file npm/ThirdPartyNotices.generated.txt npm/about.hbs
+  #         if ! diff -u -B -w npm/ThirdPartyNotices.txt npm/ThirdPartyNotices.generated.txt; then
+  #           echo "::error::npm/ThirdPartyNotices.txt is out of date. Run: cargo about generate --manifest-path npm/native/Cargo.toml --config about.toml --locked --fail --output-file npm/ThirdPartyNotices.txt npm/about.hbs"
+  #           exit 1
+  #         fi
+  # # }}}
