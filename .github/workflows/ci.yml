@@ -77,6 +77,7 @@ jobs:
             artifact_features: '--no-default-features --features "tokio pac-engine-wasmtime"'
             use_cross: true
             run_tests: true
+
           # Linux musl x86_64 + aarch64 via cross. The addon is cross-built but
           # cannot be loaded by the glibc Node runtime on the hosted runner.
           - name: linux musl x86_64
@@ -95,6 +96,7 @@ jobs:
             use_cross: true
             build_cross_addon: true
             run_tests: true
+
           # Linux armv7: no Wasmtime (no Cranelift backend for 32-bit ARM);
           # native + wasm2c, and the shipped artifact uses the wasm2c sandbox.
           - name: linux armv7
@@ -102,6 +104,30 @@ jobs:
             target: armv7-unknown-linux-gnueabihf
             features: '--no-default-features --features "tokio pac-engine pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasm2c"'
+            use_cross: true
+            run_tests: true
+          
+          - name: linux riscv64
+            os: ubuntu-latest
+            target: riscv64gc-unknown-linux-gnu
+            features: '--no-default-features --features "tokio pac-engine pac-engine-wasmtime pac-engine-wasm2c"'
+            artifact_features: '--no-default-features --features "tokio pac-engine-wasmtime"'
+            use_cross: true
+            run_tests: true
+
+          - name: linux loong64
+            os: ubuntu-latest
+            target: loongarch64-unknown-linux-gnu
+            features: '--no-default-features --features "tokio pac-engine pac-engine-wasmtime pac-engine-wasm2c"'
+            artifact_features: '--no-default-features --features "tokio pac-engine-wasmtime"'
+            use_cross: true
+            run_tests: true
+
+          - name: linux ppc64le
+            os: ubuntu-latest
+            target: powerpc64le-unknown-linux-gnu
+            features: '--no-default-features --features "tokio pac-engine pac-engine-wasmtime pac-engine-wasm2c"'
+            artifact_features: '--no-default-features --features "tokio pac-engine-wasmtime"'
             use_cross: true
             run_tests: true
 
