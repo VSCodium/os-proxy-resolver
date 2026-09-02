@@ -8,6 +8,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions: {}
+
 jobs:
   test:
     name: ${{ matrix.name }}
@@ -104,7 +106,9 @@ jobs:
             run_tests: true
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install Rust
         run: |
@@ -113,7 +117,7 @@ jobs:
           rustup target add ${{ matrix.target }}
         shell: bash
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: ${{ matrix.target }}
 
@@ -213,7 +217,7 @@ jobs:
         shell: bash
 
       - name: Upload proxytester artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: proxytester-${{ matrix.target }}
           path: dist/proxytester-${{ matrix.target }}/
@@ -233,7 +237,9 @@ jobs:
           - name: linux
             os: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install Rust
         run: |
@@ -241,7 +247,7 @@ jobs:
           rustup default stable
         shell: bash
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: os-config-${{ matrix.os }}
 
@@ -329,7 +335,9 @@ jobs:
             features: pac-engine pac-engine-wasm2c
             iterations: 200
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install Rust
         run: |
@@ -338,7 +346,7 @@ jobs:
           if [ -n "${{ matrix.target }}" ]; then rustup target add ${{ matrix.target }}; fi
         shell: bash
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: pac-bench-${{ matrix.name }}
 
@@ -493,13 +501,15 @@ jobs:
             os: ubuntu-latest
             features: --no-default-features --features "tokio pac-engine-wasmtime-jit"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install Rust
         run: |
           rustup toolchain install stable --profile minimal --no-self-update
           rustup default stable
         shell: bash
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: variant-${{ matrix.name }}
       - name: Install wasm2c (WABT 1.0.41)
@@ -518,13 +528,15 @@ jobs:
     name: no PAC backend is a compile error (non-Windows)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install Rust
         run: |
           rustup toolchain install stable --profile minimal --no-self-update
           rustup default stable
         shell: bash
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: no-backend
       # Off Windows a backend is required; building with neither must fail.
@@ -551,9 +563,11 @@ jobs:
           - name: linux
             os: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
 
@@ -589,12 +603,14 @@ jobs:
     name: rustfmt + clippy + docs
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install Rust
         run: |
           rustup toolchain install stable --profile minimal --component rustfmt --component clippy --no-self-update
           rustup default stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       # `--all-features` includes pac-engine-wasm2c, whose build script runs
       # the pinned wasm2c.
       - name: Install wasm2c (WABT 1.0.41)
@@ -617,14 +633,16 @@ jobs:
     name: licenses (deny + notices)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install Rust
         run: |
           rustup toolchain install stable --profile minimal --no-self-update
           rustup default stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: Install cargo-deny and cargo-about
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@fcf5432d9f50d67e37ee6e29bdb7a224ff67b4a7 # v2.86.8
         with:
           tool: cargo-deny,cargo-about
       # Fail if any dependency carries a license outside deny.toml's allow-list.

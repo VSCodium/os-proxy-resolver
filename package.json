@@ -1,6 +1,6 @@
 {
-  "name": "@vscode/os-proxy-resolver",
-  "version": "0.4.0",
+  "name": "@vscodium/os-proxy-resolver",
+  "version": "0.4.0-265898",
   "description": "Resolve the operating system proxy configuration from Node.js",
   "main": "index.js",
   "types": "index.d.ts",
@@ -12,9 +12,10 @@
     "LICENSE.txt",
     "ThirdPartyNotices.txt"
   ],
+  "homepage": "https://github.com/VSCodium/os-proxy-resolver",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/microsoft/os-proxy-resolver.git"
+    "url": "git+https://github.com/VSCodium/os-proxy-resolver.git"
   },
   "publishConfig": {
     "access": "public"
@@ -25,6 +26,9 @@
   },
   "scripts": {
     "build:native": "node npm/scripts/build-native.js",
+    "ci:lint": "zizmor .",
+		"ci:lint:fix": "zizmor . --fix=all",
+    "ci:update": "pinact run -min-age 7 -update",
     "test:npm": "node npm/test/smoke.js",
     "test:platform-selection": "node npm/test/platform-selection.js",
     "verify:glibc": "node npm/scripts/verify-glibc.js",
