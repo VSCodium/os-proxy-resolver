@@ -11,7 +11,7 @@ env:
 permissions: {}
 
 jobs:
-  test:
+  test: # {{{
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -222,8 +222,9 @@ jobs:
           name: proxytester-${{ matrix.target }}
           path: dist/proxytester-${{ matrix.target }}/
           if-no-files-found: error
-
-  os-config-tests:
+  # }}}
+  
+  os-config-tests: # {{{
     name: os config round-trip (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -281,8 +282,9 @@ jobs:
             cargo test --features "$features" os_roundtrip -- --nocapture
           fi
         shell: bash
+  # }}}
 
-  pac-bench:
+  pac-bench: # {{{
     name: PAC benchmark (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -469,8 +471,9 @@ jobs:
       - name: Test all embedded PAC backends
         run: ${{ matrix.use_cross && 'cross' || 'cargo' }} test --release --lib --tests ${{ matrix.target && format('--target {0}', matrix.target) || '' }} --no-default-features --features "tokio ${{ matrix.features }}"
         shell: bash
+  # }}}
 
-  pac-backend-variants:
+  pac-backend-variants: # {{{
     name: PAC backend variant (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -523,8 +526,9 @@ jobs:
       - name: Build and test
         run: cargo test ${{ matrix.features }}
         shell: bash
+  # }}}
 
-  no-backend-is-a-compile-error:
+  no-backend-is-a-compile-error: # {{{
     name: no PAC backend is a compile error (non-Windows)
     runs-on: ubuntu-latest
     steps:
@@ -548,8 +552,9 @@ jobs:
           fi
           echo "OK: building with no PAC backend fails as expected"
         shell: bash
+  # }}}
 
-  electron-pac-bench:
+  electron-pac-bench: # {{{
     name: Electron (Chromium) PAC baseline (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -598,8 +603,9 @@ jobs:
           fi
         working-directory: bench/electron
         shell: bash
+  # }}}
 
-  lint:
+  lint: # {{{
     name: rustfmt + clippy + docs
     runs-on: macos-latest
     steps:
@@ -628,8 +634,9 @@ jobs:
           RUSTDOCFLAGS: -D warnings
       - run: npm run test:platform-selection
       - run: npm run verify:packages
+  # }}}
 
-  licenses:
+  licenses: # {{{
     name: licenses (deny + notices)
     runs-on: ubuntu-latest
     steps:
@@ -667,4 +674,4 @@ jobs:
             echo "::error::npm/ThirdPartyNotices.txt is out of date. Run: cargo about generate --manifest-path npm/native/Cargo.toml --config about.toml --locked --fail --output-file npm/ThirdPartyNotices.txt npm/about.hbs"
             exit 1
           fi
-
+  # }}}

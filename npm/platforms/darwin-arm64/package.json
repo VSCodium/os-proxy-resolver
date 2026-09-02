@@ -1,7 +1,7 @@
 {
-  "name": "@vscode/os-proxy-resolver-darwin-arm64",
+  "name": "@vscodium/os-proxy-resolver-darwin-arm64",
   "version": "0.4.0",
-  "description": "Native binding for @vscode/os-proxy-resolver on macOS arm64",
+  "description": "Native binding for @vscodium/os-proxy-resolver on macOS arm64",
   "main": "os_proxy_resolver.node",
   "files": ["os_proxy_resolver.node", "LICENSE.txt", "ThirdPartyNotices.txt"],
   "os": ["darwin"],

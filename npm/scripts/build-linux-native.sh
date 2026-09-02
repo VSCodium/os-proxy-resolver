@@ -29,7 +29,7 @@ case "$target" in
 esac
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-toolchain_root="/tmp/vscode-${sysroot_arch}-sysroot/${toolchain}"
+toolchain_root="/tmp/vscodium-${sysroot_arch}-sysroot/${toolchain}"
 sysroot="${toolchain_root}/${toolchain}/sysroot"
 compiler="${toolchain_root}/bin/${toolchain}-gcc"
 objdump="${toolchain_root}/${toolchain}/bin/objdump"

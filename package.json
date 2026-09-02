@@ -35,14 +35,14 @@
     "verify:packages": "node npm/scripts/verify-packages.js"
   },
   "optionalDependencies": {
-    "@vscode/os-proxy-resolver-darwin-arm64": "0.4.0",
-    "@vscode/os-proxy-resolver-darwin-x64": "0.4.0",
-    "@vscode/os-proxy-resolver-linux-arm-gnueabihf": "0.4.0",
-    "@vscode/os-proxy-resolver-linux-arm64-gnu": "0.4.0",
-    "@vscode/os-proxy-resolver-linux-arm64-musl": "0.4.0",
-    "@vscode/os-proxy-resolver-linux-x64-gnu": "0.4.0",
-    "@vscode/os-proxy-resolver-linux-x64-musl": "0.4.0",
-    "@vscode/os-proxy-resolver-win32-arm64-msvc": "0.4.0",
-    "@vscode/os-proxy-resolver-win32-x64-msvc": "0.4.0"
+    "@vscodium/os-proxy-resolver-darwin-arm64": "0.4.0",
+    "@vscodium/os-proxy-resolver-darwin-x64": "0.4.0",
+    "@vscodium/os-proxy-resolver-linux-arm-gnueabihf": "0.4.0",
+    "@vscodium/os-proxy-resolver-linux-arm64-gnu": "0.4.0",
+    "@vscodium/os-proxy-resolver-linux-arm64-musl": "0.4.0",
+    "@vscodium/os-proxy-resolver-linux-x64-gnu": "0.4.0",
+    "@vscodium/os-proxy-resolver-linux-x64-musl": "0.4.0",
+    "@vscodium/os-proxy-resolver-win32-arm64-msvc": "0.4.0",
+    "@vscodium/os-proxy-resolver-win32-x64-msvc": "0.4.0"
   }
 }
