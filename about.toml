@@ -34,6 +34,9 @@ targets = [
     "x86_64-unknown-linux-musl",
     "aarch64-unknown-linux-musl",
     "armv7-unknown-linux-gnueabihf",
+    "riscv64gc-unknown-linux-gnu",
+    "loongarch64-unknown-linux-musl",
+    "powerpc64le-unknown-linux-gnu",
 ]
 
 # Don't emit notices for this crate itself; it's covered by LICENSE.txt.
