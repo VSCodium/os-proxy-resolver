@@ -110,24 +110,24 @@ jobs:
           - name: linux riscv64
             os: ubuntu-latest
             target: riscv64gc-unknown-linux-gnu
-            features: '--no-default-features --features "tokio pac-engine pac-engine-wasmtime pac-engine-wasm2c"'
-            artifact_features: '--no-default-features --features "tokio pac-engine-wasmtime"'
+            features: '--no-default-features --features "tokio pac-engine-wasm2c"'
+            artifact_features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             use_cross: true
             run_tests: true
 
           - name: linux loong64
             os: ubuntu-latest
             target: loongarch64-unknown-linux-musl
-            features: '--no-default-features --features "tokio pac-engine pac-engine-wasmtime pac-engine-wasm2c"'
-            artifact_features: '--no-default-features --features "tokio pac-engine-wasmtime"'
+            features: '--no-default-features --features "tokio pac-engine-wasm2c"'
+            artifact_features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             use_cross: true
             run_tests: true
 
           - name: linux ppc64le
             os: ubuntu-latest
             target: powerpc64le-unknown-linux-gnu
-            features: '--no-default-features --features "tokio pac-engine pac-engine-wasmtime pac-engine-wasm2c"'
-            artifact_features: '--no-default-features --features "tokio pac-engine-wasmtime"'
+            features: '--no-default-features --features "tokio pac-engine-wasm2c"'
+            artifact_features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             use_cross: true
             run_tests: true
 
