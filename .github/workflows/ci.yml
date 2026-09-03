@@ -105,6 +105,7 @@ jobs:
             features: '--no-default-features --features "tokio pac-engine pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             use_cross: true
+            build_cross_addon: true
             run_tests: true
           
           - name: linux riscv64
@@ -113,6 +114,7 @@ jobs:
             features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             use_cross: true
+            build_cross_addon: true
             run_tests: true
 
           - name: linux loong64
@@ -121,6 +123,7 @@ jobs:
             features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             use_cross: true
+            build_cross_addon: true
             run_tests: true
 
           - name: linux ppc64le
@@ -129,6 +132,7 @@ jobs:
             features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             use_cross: true
+            build_cross_addon: true
             run_tests: true
 
     steps:
