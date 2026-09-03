@@ -42,6 +42,9 @@
     "@vscodium/os-proxy-resolver-linux-arm64-musl": "0.4.0-265898",
     "@vscodium/os-proxy-resolver-linux-x64-gnu": "0.4.0-265898",
     "@vscodium/os-proxy-resolver-linux-x64-musl": "0.4.0-265898",
+    "@vscodium/os-proxy-resolver-linux-riscv64-gnu": "0.4.0-265898",
+    "@vscodium/os-proxy-resolver-linux-ppc64le-gnu": "0.4.0-265898",
+    "@vscodium/os-proxy-resolver-linux-loong64-gnu": "0.4.0-265898",
     "@vscodium/os-proxy-resolver-win32-arm64-msvc": "0.4.0-265898",
     "@vscodium/os-proxy-resolver-win32-x64-msvc": "0.4.0-265898"
   }
