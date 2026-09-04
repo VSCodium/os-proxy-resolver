@@ -45,7 +45,7 @@ fn async_resolution_worker_processes_second_distinct_request() {
             // may fail immediately when executing the foreign binary directly.
             // Native jobs still exercise the regression; a deadlocked child is
             // distinguished by remaining alive until the deadline below.
-            if status.code() == Some(2) {
+            if matches!(status.code(), Some(2) | Some(127)) {
                 eprintln!("skipping nested subprocess unsupported by this target runner");
                 return;
             }
