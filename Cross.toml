@@ -37,8 +37,8 @@ image = "ghcr.io/cross-rs/armv7-unknown-linux-gnueabihf:0.2.5"
 [target.riscv64gc-unknown-linux-gnu]
 image = "ghcr.io/cross-rs/riscv64gc-unknown-linux-gnu:0.2.5"
 
-[target.loongarch64-unknown-linux-musl]
-image = "ghcr.io/cross-rs/loongarch64-unknown-linux-musl:edge"
+[target.loongarch64-unknown-linux-gnu]
+image = "ghcr.io/cross-rs/loongarch64-unknown-linux-gnu:edge"
 
 [target.powerpc64le-unknown-linux-gnu]
 image = "ghcr.io/cross-rs/powerpc64le-unknown-linux-gnu:0.2.5"
