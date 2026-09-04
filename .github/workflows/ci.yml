@@ -119,7 +119,7 @@ jobs:
 
           - name: linux loong64
             os: ubuntu-latest
-            target: loongarch64-unknown-linux-gnu
+            target: loongarch64-unknown-linux-musl
             features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             use_cross: true
