@@ -22,8 +22,14 @@ case "$target" in
 		library_arch=arm-linux-gnueabihf
 		package_directory=linux-arm-gnueabihf
 		;;
+	powerpc64le-unknown-linux-gnu)
+		sysroot_arch=ppc64el
+		toolchain=powerpc64le-linux-gnu
+		library_arch=powerpc64le-linux-gnu
+		package_directory=linux-ppc64le-gnu
+		;;
 	*)
-		echo "Usage: $0 <x86_64-unknown-linux-gnu|aarch64-unknown-linux-gnu|armv7-unknown-linux-gnueabihf>" >&2
+		echo "Usage: $0 <x86_64-unknown-linux-gnu|aarch64-unknown-linux-gnu|armv7-unknown-linux-gnueabihf|powerpc64le-unknown-linux-gnu>" >&2
 		exit 2
 		;;
 esac
