@@ -5,7 +5,7 @@
   "main": "os_proxy_resolver.node",
   "files": ["os_proxy_resolver.node", "LICENSE.txt", "ThirdPartyNotices.txt"],
   "os": ["linux"],
-  "cpu": ["ppc64le"],
+  "cpu": ["ppc64"],
   "libc": ["glibc"],
   "publishConfig": { "access": "public" },
   "license": "MIT",
