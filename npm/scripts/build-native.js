@@ -14,7 +14,7 @@ const targets = {
 	'x86_64-unknown-linux-gnu': ['linux-x64-gnu', 'libos_proxy_resolver_node.so'],
 	'x86_64-unknown-linux-musl': ['linux-x64-musl', 'libos_proxy_resolver_node.so'],
 	'riscv64gc-unknown-linux-gnu': ['linux-riscv64-gnu', 'libos_proxy_resolver_node.so'],
-	'loongarch64-unknown-linux-musl': ['linux-loong64-musl', 'libos_proxy_resolver_node.so'],
+	'loongarch64-unknown-linux-gnu': ['linux-loong64-gnu', 'libos_proxy_resolver_node.so'],
 	'powerpc64le-unknown-linux-gnu': ['linux-ppc64le-gnu', 'libos_proxy_resolver_node.so'],
 	'aarch64-pc-windows-msvc': ['win32-arm64-msvc', 'os_proxy_resolver_node.dll'],
 	'x86_64-pc-windows-msvc': ['win32-x64-msvc', 'os_proxy_resolver_node.dll'],
