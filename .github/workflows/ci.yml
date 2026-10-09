@@ -14,6 +14,9 @@ jobs:
   test: # {{{
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
@@ -86,7 +89,6 @@ jobs:
             features: '--no-default-features --features "tokio pac-engine pac-engine-wasmtime pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasmtime"'
             use_cross: true
-            build_cross_addon: true
             run_tests: true
           - name: linux musl aarch64
             os: ubuntu-latest
@@ -94,7 +96,6 @@ jobs:
             features: '--no-default-features --features "tokio pac-engine pac-engine-wasmtime pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasmtime"'
             use_cross: true
-            build_cross_addon: true
             run_tests: true
 
           # Linux armv7: no Wasmtime (no Cranelift backend for 32-bit ARM);
@@ -105,7 +106,6 @@ jobs:
             features: '--no-default-features --features "tokio pac-engine pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             use_cross: true
-            build_cross_addon: true
             run_tests: true
           
           - name: linux riscv64
@@ -114,7 +114,6 @@ jobs:
             features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             use_cross: true
-            build_cross_addon: true
             run_tests: true
 
           - name: linux loong64
@@ -123,7 +122,6 @@ jobs:
             features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             use_cross: true
-            build_cross_addon: true
             run_tests: true
 
           - name: linux ppc64le
@@ -132,7 +130,6 @@ jobs:
             features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             use_cross: true
-            build_cross_addon: true
             run_tests: true
 
     steps:
@@ -145,7 +142,6 @@ jobs:
           rustup toolchain install stable --profile minimal --no-self-update
           rustup default stable
           rustup target add ${{ matrix.target }}
-        shell: bash
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
@@ -178,7 +174,6 @@ jobs:
             echo "OS_PROXY_RESOLVER_WASM2C=$bin" >> "$GITHUB_ENV"
             "$HOME/wabt/bin/wasm2c" --version
           fi
-        shell: bash
 
       # The WABT release binaries need a newer glibc than the cross container
       # images ship, so cross builds cannot run wasm2c themselves. Its output
@@ -196,7 +191,6 @@ jobs:
           "$HOME/wabt/bin/wasm2c" pac-wasm-guest/pac_guest.wasm --module-name pac_guest \
             -o pac-wasm-guest/generated/pac_guest.c
           echo "OS_PROXY_RESOLVER_PAC_GUEST_C_DIR=pac-wasm-guest/generated" >> "$GITHUB_ENV"
-        shell: bash
 
       - name: Install cross
         if: matrix.use_cross
@@ -204,33 +198,27 @@ jobs:
 
       - name: Build
         run: ${{ matrix.use_cross && 'cross' || 'cargo' }} build --target ${{ matrix.target }} ${{ matrix.features }} --examples
-        shell: bash
 
       - name: Test
         if: matrix.run_tests
         run: ${{ matrix.use_cross && 'cross' || 'cargo' }} test --target ${{ matrix.target }} ${{ matrix.features }}
-        shell: bash
 
       - name: Build Node addon
         if: ${{ !matrix.use_cross }}
         run: node npm/scripts/build-native.js ${{ matrix.target }}
-        shell: bash
 
       - name: Cross-build Node addon
-        if: matrix.build_cross_addon
+        if: matrix.use_cross
         env:
           CARGO_BUILD_COMMAND: cross
         run: node npm/scripts/build-native.js ${{ matrix.target }}
-        shell: bash
 
       - name: Test Node addon
         if: ${{ !matrix.use_cross }}
         run: node npm/test/smoke.js
-        shell: bash
 
       - name: Build proxytester (release)
         run: ${{ matrix.use_cross && 'cross' || 'cargo' }} build --release --target ${{ matrix.target }} ${{ matrix.artifact_features }} --example proxytester
-        shell: bash
 
       - name: Stage proxytester artifact
         run: |
@@ -244,7 +232,6 @@ jobs:
           # is statically linked into the binary, so proxytester is
           # self-contained.
           cp "target/${{ matrix.target }}/release/examples/proxytester${ext}" "$stage/"
-        shell: bash
 
       - name: Upload proxytester artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
