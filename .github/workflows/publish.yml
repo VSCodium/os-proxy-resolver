@@ -26,13 +26,15 @@ jobs:
           - name: windows x64
             os: windows-latest
             target: x86_64-pc-windows-msvc
-            package: 'win32-x64'
+            package: win32-x64
+            platform: win32-x64-msvc
             features: '--no-default-features --features "tokio pac-engine pac-engine-wasmtime pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasmtime"'
           - name: windows arm64
             os: windows-11-arm
             target: aarch64-pc-windows-msvc
-            package: 'win32-arm64'
+            package: win32-arm64
+            platform: win32-arm64-msvc
             features: '--no-default-features --features "tokio pac-engine pac-engine-wasmtime pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasmtime"'
 
@@ -40,13 +42,15 @@ jobs:
           - name: macos arm64
             os: macos-latest
             target: aarch64-apple-darwin
-            package: 'darwin-arm64'
+            package: darwin-arm64
+            platform: darwin-arm64
             features: '--no-default-features --features "tokio pac-engine pac-engine-wasmtime pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasmtime"'
           - name: macos x64
             os: macos-15-intel
             target: x86_64-apple-darwin
-            package: 'darwin-x64'
+            package: darwin-x64
+            platform: darwin-x64
             features: '--no-default-features --features "tokio pac-engine pac-engine-wasmtime pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasmtime"'
 
@@ -54,7 +58,8 @@ jobs:
           - name: linux x86_64
             os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            package: 'linux-x64-glibc'
+            package: linux-x64-glibc
+            platform: linux-x64-gnu
             features: '--no-default-features --features "tokio pac-engine pac-engine-wasmtime pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasmtime"'
 
@@ -62,7 +67,8 @@ jobs:
           - name: linux aarch64
             os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
-            package: 'linux-arm64-glibc'
+            package: linux-arm64-glibc
+            platform: linux-arm64-gnu
             features: '--no-default-features --features "tokio pac-engine pac-engine-wasmtime pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasmtime"'
             use_cross: true
@@ -72,14 +78,16 @@ jobs:
           - name: linux musl x86_64
             os: ubuntu-latest
             target: x86_64-unknown-linux-musl
-            package: 'linux-x64-musl'
+            package: linux-x64-musl
+            platform: linux-x64-musl
             features: '--no-default-features --features "tokio pac-engine pac-engine-wasmtime pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasmtime"'
             use_cross: true
           - name: linux musl aarch64
             os: ubuntu-latest
             target: aarch64-unknown-linux-musl
-            package: 'linux-arm64-musl'
+            package: linux-arm64-musl
+            platform: linux-arm64-musl
             features: '--no-default-features --features "tokio pac-engine pac-engine-wasmtime pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasmtime"'
             use_cross: true
@@ -89,7 +97,8 @@ jobs:
           - name: linux armv7
             os: ubuntu-latest
             target: armv7-unknown-linux-gnueabihf
-            package: 'linux-arm-glibc'
+            package: linux-arm-glibc
+            platform: linux-arm-gnueabihf
             features: '--no-default-features --features "tokio pac-engine pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             use_cross: true
@@ -97,7 +106,8 @@ jobs:
           - name: linux riscv64
             os: ubuntu-latest
             target: riscv64gc-unknown-linux-gnu
-            package: 'linux-riscv64-glibc'
+            package: linux-riscv64-glibc
+            platform: linux-riscv64-gnu
             features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             use_cross: true
@@ -105,7 +115,8 @@ jobs:
           - name: linux loong64
             os: ubuntu-latest
             target: loongarch64-unknown-linux-gnu
-            package: 'linux-loong64-glibc'
+            package: linux-loong64-glibc
+            platform: linux-loong64-gnu
             features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             use_cross: true
@@ -113,7 +124,8 @@ jobs:
           - name: linux ppc64le
             os: ubuntu-latest
             target: powerpc64le-unknown-linux-gnu
-            package: 'linux-ppc64-glibc'
+            package: linux-ppc64-glibc
+            platform: linux-ppc64le-gnu
             features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             artifact_features: '--no-default-features --features "tokio pac-engine-wasm2c"'
             use_cross: true
@@ -184,7 +196,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ matrix.package }}
-          path: npm/platforms/${{ matrix.package }}/os_proxy_resolver.node
+          path: npm/platforms/${{ matrix.platform }}/os_proxy_resolver.node
           if-no-files-found: error
   # }}}
 
