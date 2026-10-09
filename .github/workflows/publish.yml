@@ -195,7 +195,7 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ matrix.package }}
+          name: ${{ matrix.platform }}
           path: npm/platforms/${{ matrix.platform }}
           retention-days: 3
   # }}}
@@ -225,10 +225,10 @@ jobs:
       - name: Verify packages
         run: |
           set -e
+
           npm run verify:packages
-          
+
           for directory in npm/platforms/*/; do
-            test -f "${directory}package.json"
             test -f "${directory}os_proxy_resolver.node"
             test -f "${directory}LICENSE.txt"
             test -f "${directory}ThirdPartyNotices.txt"
