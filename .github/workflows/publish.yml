@@ -226,9 +226,12 @@ jobs:
         run: |
           set -e
           npm run verify:packages
+          
           for directory in npm/platforms/*/; do
+            test -f "${directory}package.json"
             test -f "${directory}os_proxy_resolver.node"
-            cp LICENSE.txt npm/ThirdPartyNotices.txt "$directory"
+            test -f "${directory}LICENSE.txt"
+            test -f "${directory}ThirdPartyNotices.txt"
           done
 
       - name: Publish platform packages to NPM Registry
