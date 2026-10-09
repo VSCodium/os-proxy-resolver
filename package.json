@@ -29,10 +29,14 @@
     "ci:lint": "zizmor .",
 		"ci:lint:fix": "zizmor . --fix=all",
     "ci:update": "pinact run -min-age 7 -update",
+    "release": "release-it --no-increment",
     "test:npm": "node npm/test/smoke.js",
     "test:platform-selection": "node npm/test/platform-selection.js",
     "verify:glibc": "node npm/scripts/verify-glibc.js",
     "verify:packages": "node npm/scripts/verify-packages.js"
+  },
+  "devDependencies": {
+    "release-it": "21.1.1"
   },
   "optionalDependencies": {
     "@vscodium/os-proxy-resolver-darwin-arm64": "0.4.0-265898",
@@ -47,5 +51,10 @@
     "@vscodium/os-proxy-resolver-linux-loong64-gnu": "0.4.0-265898",
     "@vscodium/os-proxy-resolver-win32-arm64-msvc": "0.4.0-265898",
     "@vscodium/os-proxy-resolver-win32-x64-msvc": "0.4.0-265898"
+  },
+  "overrides": {
+    "get-uri": {
+      "basic-ftp": "6.2.1"
+    }
   }
 }
