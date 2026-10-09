@@ -11,3 +11,4 @@
 /npm/platforms/*/*.node
 /npm/platforms/*/LICENSE.txt
 /npm/platforms/*/ThirdPartyNotices.txt
+/node_modules
