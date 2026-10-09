@@ -196,8 +196,8 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ matrix.package }}
-          path: npm/platforms/${{ matrix.platform }}/os_proxy_resolver.node
-          if-no-files-found: error
+          path: npm/platforms/${{ matrix.platform }}
+          retention-days: 3
   # }}}
 
   publish: # {{{
