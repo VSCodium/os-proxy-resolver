@@ -129,10 +129,6 @@ jobs:
           rustup default stable
           rustup target add ${{ matrix.target }}
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          key: ${{ matrix.target }}
-
       - name: Install wasm2c (WABT 1.0.41)
         if: ${{ !matrix.use_cross }}
         run: |
