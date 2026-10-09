@@ -1,4 +1,4 @@
-name: Publish Package
+name: Publish
 
 on:
   workflow_dispatch:
@@ -194,11 +194,7 @@ jobs:
 
   publish: # {{{
     needs:
-      - linux-gnu
-      - linux-musl
-      - linux-cross
-      - macos
-      - windows
+      - build
     runs-on: ubuntu-latest
     environment: publish
     permissions:
