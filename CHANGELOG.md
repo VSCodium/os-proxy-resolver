@@ -2,6 +2,12 @@
 
 Notable changes to this project will be documented in this file.
 
+## 0.4.0-265898
+
+### Features
+
+- Add `loong64`, `ppc64le` and `riscv64` architectures
+
 ## 0.4.0
 
 ### Fixed
