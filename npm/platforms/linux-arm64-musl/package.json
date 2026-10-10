@@ -9,5 +9,5 @@
   "libc": ["musl"],
   "publishConfig": { "access": "public" },
   "license": "MIT",
-  "repository": "github:vscodium/os-proxy-resolver"
+  "repository": "github:VSCodium/os-proxy-resolver"
 }
